@@ -1,0 +1,77 @@
+group 'aws.test'
+version '1.0-SNAPSHOT'
+
+apply plugin: 'java'
+apply plugin: 'groovy'
+
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath "io.spring.gradle:dependency-management-plugin:1.0.3.RELEASE"
+    }
+}
+
+sourceCompatibility = '1.8'
+
+def jarBaseName = 'CompiledComponentName' // Customize compiled file name
+def componentNode = parseComponent(project)
+def moquiDir = file(projectDir.absolutePath + '/../../..')
+def frameworkDir = file(moquiDir.absolutePath + '/framework')
+
+test {
+    dependsOn cleanTest
+//    include '**/GNDTestSuite.class'
+    systemProperty 'moqui.runtime', moquiDir.absolutePath + '/runtime'
+    systemProperty 'moqui.conf', 'conf/MoquiDevConf.xml'
+    systemProperty 'moqui.init.static', 'true'
+
+    // testLogging.showsStandardStreams = true; testLogging.showExceptions = true
+
+    classpath += files(sourceSets.main.output.classesDirs)
+
+    classpath = classpath.filter { it.exists() }
+    beforeTest { descriptor -> logger.lifecycle("Runnin test: ${descriptor}") }
+}
+
+version = componentNode.'@version'
+
+repositories {
+    flatDir name: 'localLib', dirs: frameworkDir.absolutePath + '/lib'
+    jcenter()
+    mavenCentral()
+}
+
+tasks.withType(JavaCompile) { options.compilerArgs << "-proc:none" }
+tasks.withType(GroovyCompile) { options.compilerArgs << "-proc:none" }
+
+apply plugin: "io.spring.dependency-management"
+
+dependencyManagement {
+    imports {
+        mavenBom 'com.amazonaws:aws-java-sdk-bom:1.11.228'
+    }
+}
+
+dependencies {
+    compile project(':framework')
+    testCompile project(':framework').configurations.testCompile.allDependencies
+    compile "com.stripe:stripe-java:7.1.0"
+    compile 'com.amazonaws:aws-java-sdk-ses'
+
+}
+
+task cleanLib(type: Delete) { delete fileTree(dir: projectDir.absolutePath+'/lib', include: '*') }
+clean.dependsOn cleanLib
+
+jar {
+    destinationDir = file(projectDir.absolutePath + '/lib') // Declaring compiled Groovy goes into lib directory
+    baseName = jarBaseName
+}
+task copyDependencies { doLast {
+    copy { from (configurations.runtime - project(':framework').configurations.runtime - project(':framework').jar.archivePath)
+        into file(projectDir.absolutePath + '/lib') }
+} }
+copyDependencies.dependsOn cleanLib
+jar.dependsOn copyDependencies

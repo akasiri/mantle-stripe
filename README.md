@@ -1,0 +1,1 @@
+moqui component providing moqui-esque interaction with stripe's API
