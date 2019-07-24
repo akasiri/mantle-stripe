@@ -72,7 +72,7 @@ along with this software (see the LICENSE.md file). If not, see
                 <set field="postalAddress" from="billingContactInfo.postalAddress"/>
                 <set field="stateProvinceGeo" from="billingContactInfo.postalAddressStateGeo"/>
             </if>
-            <if condition="postalAddress == null"><return message="In store#CustomerPaymentMethod no address associated with credit card ${paymentMethodId}, not saving Stripe record."/></if> <!-- TODO: Stripe doesn't require a postal address. should I still require it? -->
+<!--            <if condition="postalAddress == null"><return message="In store#CustomerPaymentMethod no address associated with credit card ${paymentMethodId}, not saving Stripe record."/></if> &lt;!&ndash; TODO: Stripe doesn't require a postal address. should I still require it?. For now, No. &ndash;&gt;-->
             <set field="stateProvinceGeo" from="stateProvinceGeo != null ? stateProvinceGeo : postalAddress.stateProvinceGeo"/>
 
             <set field="telecomNumber" from="paymentMethod.telecomNumber"/>
