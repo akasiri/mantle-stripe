@@ -442,33 +442,6 @@ class TransactionTests extends Specification {
         ec.service.sync().name("delete#mantle.account.method.PaymentMethod").parameters([paymentMethodId:paymentMethodId]).call()
     }
 
-    def "Fails when paymentMethod is not a credit card" () {
-        given:
-        def paymentMethodId = ec.service.sync().name("create#mantle.account.method.PaymentMethod").call().paymentMethodId
-        def giftCard = ec.service.sync().name("create#mantle.account.method.GiftCard")
-                .parameters([
-                    paymentMethodId:paymentMethodId
-                ]).call()
-        def paymentId = ec.service.sync().name("create#mantle.account.payment.Payment")
-                .parameters([
-                        paymentMethodId:paymentMethodId,
-                        amount:30000,
-
-                ]).call().paymentId
-        when:
-        def paymentGatewayResponseId = ec.service.sync().name("Stripe.StripePaymentServices.authorize#Payment").parameters([paymentId:paymentId,paymentGatewayConfigId:"StripeDemo"]).call().paymentGatewayResponseId
-
-        then:
-        def pgr = ec.entity.find("mantle.account.method.PaymentGatewayResponse").condition("paymentGatewayResponseId", paymentGatewayResponseId).one()
-        pgr == null
-
-        cleanup:
-        ec.service.sync().name("delete#mantle.account.method.PaymentGatewayResponse").parameters([paymentGatewayResponseId:paymentGatewayResponseId]).call()
-        ec.service.sync().name("delete#mantle.account.payment.Payment").parameters([paymentId:paymentId]).call()
-        ec.service.sync().name("delete#mantle.account.method.GiftCard").parameters([paymentMethodId:giftCard.paymentMethodId]).call()
-        ec.service.sync().name("delete#mantle.account.method.PaymentMethod").parameters([paymentMethodId:paymentMethodId]).call()
-    }
-
     def "Authorize a payment with extra personal information (name, postal address, phone number, email)" () {
         given:
         def EMAIL = "stripetest.helloworld@moqui.org"
@@ -476,28 +449,24 @@ class TransactionTests extends Specification {
         def FIRSTNAME = "Stripe"
         def LASTNAME = "Test"
 
-        def postalContactMechId = ec.service.sync().name("create#mantle.party.contact.ContactMech").parameters([contactMechTypeEnumId:"CmtPostalAddress"]).call().contactMechId
-        def telecomContactMechId = ec.service.sync().name("create#mantle.party.contact.ContactMech").parameters([contactMechTypeEnumId:"CmtTelecomNumber"]).call().contactMechId
-        def emailContactMechId = ec.service.sync().name("create#mantle.party.contact.ContactMech").parameters([contactMechTypeEnumId:"CmtEmailAddress",infoString:EMAIL]).call().contactMechId
-
-        ec.service.sync().name("create#mantle.party.contact.PostalAddress")
+        def postalContactMechId = ec.service.sync().name("mantle.party.ContactServices.create#PostalAddress")
                 .parameters([
-                        contactMechId:postalContactMechId,
                         address1:"123 test street",
                         address2:"",
                         city:"San Diego",
                         stateProvinceGeoId:"USA_CA",
                         countryGeoId:"USA",
                         postalCode:"92101"
-                ]).call()
-        def postalAddress = ec.entity.find("mantle.party.contact.PostalAddress").condition("contactMechId", postalContactMechId).one()
-
-        ec.service.sync().name("create#mantle.party.contact.TelecomNumber")
+                ]).call().contactMechId
+        def telecomContactMechId = ec.service.sync().name("mantle.party.ContactServices.create#TelecomNumber")
                 .parameters([
-                        contactMechId:telecomContactMechId,
                         areaCode:PHONE[0],
                         contactNumber:PHONE[1]+PHONE[2]
-                ]).call()
+                ]).call().contactMechId
+        def emailContactMechId = ec.service.sync().name("mantle.party.ContactServices.create#EmailAddress")
+                .parameters([
+                        emailAddress:EMAIL
+                ]).call().contactMechId
 
         def paymentMethodId = ec.service.sync().name("create#mantle.account.method.PaymentMethod")
                 .parameters([
@@ -508,6 +477,7 @@ class TransactionTests extends Specification {
                         emailContactMechId:emailContactMechId
                 ]).call().paymentMethodId
 
+        def postalAddress = ec.entity.find("mantle.party.contact.PostalAddress").condition("contactMechId", postalContactMechId).one()
         def creditCard = ec.service.sync().name("create#mantle.account.method.CreditCard")
                 .parameters([
                         paymentMethodId:paymentMethodId,
@@ -551,5 +521,32 @@ class TransactionTests extends Specification {
         ec.service.sync().name("delete#mantle.party.contact.TelecomNumber").parameters([contactMechId:telecomContactMechId]).call()
         ec.service.sync().name("delete#mantle.party.contact.ContactMech").parameters([contactMechId:telecomContactMechId]).call()
         ec.service.sync().name("delete#mantle.party.contact.ContactMech").parameters([contactMechId:emailContactMechId]).call()
+    }
+
+    def "Fails when paymentMethod is not a credit card" () {
+        given:
+        def paymentMethodId = ec.service.sync().name("create#mantle.account.method.PaymentMethod").call().paymentMethodId
+        def giftCard = ec.service.sync().name("create#mantle.account.method.GiftCard")
+                .parameters([
+                    paymentMethodId:paymentMethodId
+                ]).call()
+        def paymentId = ec.service.sync().name("create#mantle.account.payment.Payment")
+                .parameters([
+                        paymentMethodId:paymentMethodId,
+                        amount:30000,
+
+                ]).call().paymentId
+        when:
+        def paymentGatewayResponseId = ec.service.sync().name("Stripe.StripePaymentServices.authorize#Payment").parameters([paymentId:paymentId,paymentGatewayConfigId:"StripeDemo"]).call().paymentGatewayResponseId
+
+        then:
+        def pgr = ec.entity.find("mantle.account.method.PaymentGatewayResponse").condition("paymentGatewayResponseId", paymentGatewayResponseId).one()
+        pgr == null
+
+        cleanup:
+        ec.service.sync().name("delete#mantle.account.method.PaymentGatewayResponse").parameters([paymentGatewayResponseId:paymentGatewayResponseId]).call()
+        ec.service.sync().name("delete#mantle.account.payment.Payment").parameters([paymentId:paymentId]).call()
+        ec.service.sync().name("delete#mantle.account.method.GiftCard").parameters([paymentMethodId:giftCard.paymentMethodId]).call()
+        ec.service.sync().name("delete#mantle.account.method.PaymentMethod").parameters([paymentMethodId:paymentMethodId]).call()
     }
 }
