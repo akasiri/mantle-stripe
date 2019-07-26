@@ -46,7 +46,7 @@ class CustomerServices {
 
         def tokenResponse = TokenServices.generateToken(ec).responseMap
         if (tokenResponse.token) customerInfo.source = tokenResponse.token.id
-        else ec.logger.warn("In CustomerServices.sendUpdateRequest(), unable to generate token from the given credit card info. Just going to update the other customer info that was given.")
+        else ec.logger.warn("In CustomerServices.sendUpdateRequest(), unable to generate token from the given credit card info. Just going to update the other customer info that was given.(Token error: ${tokenResponse.errorInfo.reasonMessage}")
 
         def responseMap = [:]
 
