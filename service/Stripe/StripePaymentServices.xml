@@ -348,9 +348,9 @@ along with this software (see the LICENSE.md file). If not, see
                         transactionDate:ec.user.nowTimestamp,
                         resultSuccess:(errorInfo.responseCode == '1' ? 'Y' : 'N'),
                         resultDeclined:(errorInfo.responseCode == '2' ? 'Y' : 'N'),
-                        resultError:(errorInfo.responseCode == '3' ? 'Y' : 'N'),
-                        resultBadExpire:(errorInfo.reasonCode == '7' || errorInfo.reasonCode == '8' ? 'Y' : 'N'),
-                        resultBadCardNumber:(errorInfo.reasonCode == '6' || errorInfo.reasonCode == '37' ? 'Y' : 'N'),
+                        resultError:(errorInfo.exception ? 'Y' : 'N'),
+                        resultBadExpire:(errorInfo.responseCode == '7' || errorInfo.responseCode == '8' ? 'Y' : 'N'),
+                        resultBadCardNumber:(errorInfo.responseCode == '6' || errorInfo.responseCode == '37' ? 'Y' : 'N'),
                         resultNsf:'N']"/>
             <!-- TODO: how to handle resultNsf? can't find in docs... -->
         </actions>

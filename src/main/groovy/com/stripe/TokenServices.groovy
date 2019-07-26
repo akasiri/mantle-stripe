@@ -24,13 +24,13 @@ class TokenServices {
             responseMap.errorInfo = ['responseCode':'1'] // '1' = success
         }
         catch (StripeException e) {
-            responseMap.errorInfo = ['responseCode':'','reasonCode':e.getCode(),'reasonMessage':e.getMessage()]
-            if (e.getCode() == "incorrect_number") responseMap.responseCode = "6"
-            else if (e.getCode() == "invalid_expiry_year" || e.getCode() == "invalid_expiry_month") responseMap.responseCode = "7"
-            else responseMap.responseCode = "3"
+            responseMap.errorInfo = ['responseCode':'','reasonCode':e.getCode(),'reasonMessage':e.getMessage(),'exception':e]
+            if (e.getCode() == "incorrect_number") responseMap.errorInfo.responseCode = '6'
+            else if (e.getCode() == "invalid_expiry_year" || e.getCode() == "invalid_expiry_month") responseMap.errorInfo.responseCode = '7'
+            else responseMap.errorInfo.responseCode = '3'
         }
         catch (Exception e) {
-            responseMap.errorInfo = ['responseCode':'3','reasonCode':'','reasonMessage':e.getMessage()]
+            responseMap.errorInfo = ['responseCode':'3','reasonCode':'','reasonMessage':e.getMessage(),'exception':e]
         }
 
         return ['responseMap':responseMap]
