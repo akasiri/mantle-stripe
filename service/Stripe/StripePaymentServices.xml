@@ -13,26 +13,33 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 
-<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-2.1.xsd">
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-2.1.xsd">
     <service verb="authorize" noun="Payment">
         <implements service="mantle.account.PaymentServices.authorize#Payment"/>
         <actions>
             <service-call name="Stripe.StripePaymentServices.get#StripeGatewayInfo" in-map="context" out-map="context"/>
             <set field="secretKey" from="stripeGatewayInfoMap.secretKey"/>
 
-            <service-call name="Stripe.StripePaymentServices.get#PaymentGatewayInfo" in-map="context" out-map="context"/>
+            <service-call name="Stripe.StripePaymentServices.get#PaymentGatewayInfo" in-map="context"
+                          out-map="context"/>
 
             <!-- if a cardSecurityCode is passed in set it now (to override CreditCard.cardSecurityCode) -->
-            <if condition="cardSecurityCode"><set field="requestMap.cvc" from="cardSecurityCode"/></if>
+            <if condition="cardSecurityCode">
+                <set field="creditCardInfo.cvc" from="cardSecurityCode"/>
+            </if>
+
 
             <set field="transactionInfo.capture" from="false"/>
-            <service-call name="Stripe.StripePaymentServices.send#StripeAuthorizeRequest" in-map="context" out-map="context"/>
+            <service-call name="Stripe.StripePaymentServices.send#StripeAuthorizeRequest" in-map="context"
+                          out-map="context"/>
 
             <set field="paymentOperationEnumId" value="PgoAuthorize"/>
-            <if condition="!responseMap"><then>
-                <entity-find-one entity-name="mantle.account.payment.Payment" value-field="payment"/>
-                <!-- charge was not completed successfully, save an error response -->
-                <service-call name="create#mantle.account.method.PaymentGatewayResponse" out-map="context" in-map="[
+            <if condition="!responseMap">
+                <then>
+                    <entity-find-one entity-name="mantle.account.payment.Payment" value-field="payment"/>
+                    <!-- charge was not completed successfully, save an error response -->
+                    <service-call name="create#mantle.account.method.PaymentGatewayResponse" out-map="context" in-map="[
                           paymentGatewayConfigId:paymentGatewayConfigId,
                           paymentOperationEnumId:paymentOperationEnumId,
                           paymentId:paymentId,
@@ -45,13 +52,22 @@ along with this software (see the LICENSE.md file). If not, see
                           resultError:'Y',
                           resultBadExpire:'N',
                           resultBadCardNumber:'N']"/>
-            </then><else>
-                <service-call name="Stripe.StripePaymentServices.save#StripeResponse" in-map="context" out-map="context"/>
-                <if condition="responseMap.errorInfo.exception">
-                    <then><log level="error" message="Unable to authorize payment. Exception in TransactionServices.sendAuthorizeRequest(): ${responseMap.errorInfo.exception.toString()}"/></then>
-                    <else><log level="info" message="Successfully completed authorization of charge: ${responseMap.charge.id}"/></else>
-                </if>
-            </else></if>
+                </then>
+                <else>
+                    <service-call name="Stripe.StripePaymentServices.save#StripeResponse" in-map="context"
+                                  out-map="context"/>
+                    <if condition="responseMap.errorInfo.exception">
+                        <then>
+                            <log level="error"
+                                 message="Unable to authorize payment. Exception in TransactionServices.sendAuthorizeRequest(): ${responseMap.errorInfo.exception.toString()}"/>
+                        </then>
+                        <else>
+                            <log level="info"
+                                 message="Successfully completed authorization of charge: ${responseMap.charge.id}"/>
+                        </else>
+                    </if>
+                </else>
+            </if>
         </actions>
     </service>
     <service verb="capture" noun="Payment">
@@ -63,13 +79,15 @@ along with this software (see the LICENSE.md file). If not, see
             <service-call name="Stripe.StripePaymentServices.get#AuthGatewayInfo" in-map="context" out-map="context"/>
             <set field="chargeId" from="authInfoMap.chargeId"/>
 
-            <service-call name="Stripe.StripePaymentServices.send#StripeCaptureRequest" in-map="context" out-map="context"/>
+            <service-call name="Stripe.StripePaymentServices.send#StripeCaptureRequest" in-map="context"
+                          out-map="context"/>
 
             <set field="paymentOperationEnumId" value="PgoCapture"/>
-            <if condition="!responseMap"><then>
-                <entity-find-one entity-name="mantle.account.payment.Payment" value-field="payment"/>
-                <!-- charge was not completed successfully, save an error response -->
-                <service-call name="create#mantle.account.method.PaymentGatewayResponse" out-map="context" in-map="[
+            <if condition="!responseMap">
+                <then>
+                    <entity-find-one entity-name="mantle.account.payment.Payment" value-field="payment"/>
+                    <!-- charge was not completed successfully, save an error response -->
+                    <service-call name="create#mantle.account.method.PaymentGatewayResponse" out-map="context" in-map="[
                               paymentGatewayConfigId:paymentGatewayConfigId,
                               paymentOperationEnumId:paymentOperationEnumId,
                               paymentId:paymentId,
@@ -82,35 +100,53 @@ along with this software (see the LICENSE.md file). If not, see
                               resultError:'Y',
                               resultBadExpire:'N',
                               resultBadCardNumber:'N']"/>
-            </then><else>
-                <service-call name="Stripe.StripePaymentServices.save#StripeResponse" in-map="context" out-map="context"/>
-                <if condition="responseMap.errorInfo.exception">
-                    <then><log level="error" message="Unable to capture payment. Exception in TransactionServices.sendCaptureRequest(): ${responseMap.errorInfo.exception.toString()}"/></then>
-                    <else><log level="info" message="Successfully completed capture of charge: ${responseMap.charge.id}"/></else>
-                </if>
-            </else></if>
+                </then>
+                <else>
+                    <service-call name="Stripe.StripePaymentServices.save#StripeResponse" in-map="context"
+                                  out-map="context"/>
+                    <if condition="responseMap.errorInfo.exception">
+                        <then>
+                            <log level="error"
+                                 message="Unable to capture payment. Exception in TransactionServices.sendCaptureRequest(): ${responseMap.errorInfo.exception.toString()}"/>
+                        </then>
+                        <else>
+                            <log level="info"
+                                 message="Successfully completed capture of charge: ${responseMap.charge.id}"/>
+                        </else>
+                    </if>
+                </else>
+            </if>
         </actions>
     </service>
     <service verb="authorizeAndCapture" noun="Payment">
-        <description>Exactly the same as authorize#Payment, except that transactionInfo.capture=true is sent to Stripe.</description>
+        <description>Exactly the same as authorize#Payment, except that transactionInfo.capture=true is sent to
+            Stripe.
+        </description>
         <implements service="mantle.account.PaymentServices.authorize#Payment"/>
         <actions>
             <service-call name="Stripe.StripePaymentServices.get#StripeGatewayInfo" in-map="context" out-map="context"/>
             <set field="secretKey" from="stripeGatewayInfoMap.secretKey"/>
 
-            <service-call name="Stripe.StripePaymentServices.get#PaymentGatewayInfo" in-map="context" out-map="context"/>
+            <service-call name="Stripe.StripePaymentServices.get#PaymentGatewayInfo" in-map="context"
+                          out-map="context"/>
+
 
             <!-- if a cardSecurityCode is passed in set it now (to override CreditCard.cardSecurityCode) -->
-            <if condition="cardSecurityCode"><set field="requestMap.cvc" from="cardSecurityCode"/></if>
+            <if condition="cardSecurityCode">
+                <set field="creditCardInfo.cvc" from="cardSecurityCode"/>
+            </if>
+
 
             <set field="transactionInfo.capture" from="true"/>
-            <service-call name="Stripe.StripePaymentServices.send#StripeAuthorizeRequest" in-map="context" out-map="context"/>
+            <service-call name="Stripe.StripePaymentServices.send#StripeAuthorizeRequest" in-map="context"
+                          out-map="context"/>
 
             <set field="paymentOperationEnumId" value="PgoAuthAndCapture"/>
-            <if condition="!responseMap"><then>
-                <entity-find-one entity-name="mantle.account.payment.Payment" value-field="payment"/>
-                <!-- charge was not completed successfully, save an error response -->
-                <service-call name="create#mantle.account.method.PaymentGatewayResponse" out-map="context" in-map="[
+            <if condition="!responseMap">
+                <then>
+                    <entity-find-one entity-name="mantle.account.payment.Payment" value-field="payment"/>
+                    <!-- charge was not completed successfully, save an error response -->
+                    <service-call name="create#mantle.account.method.PaymentGatewayResponse" out-map="context" in-map="[
                               paymentGatewayConfigId:paymentGatewayConfigId,
                               paymentOperationEnumId:paymentOperationEnumId,
                               paymentId:paymentId,
@@ -123,17 +159,28 @@ along with this software (see the LICENSE.md file). If not, see
                               resultError:'Y',
                               resultBadExpire:'N',
                               resultBadCardNumber:'N']"/>
-            </then><else>
-                <service-call name="Stripe.StripePaymentServices.save#StripeResponse" in-map="context" out-map="context"/>
-                <if condition="responseMap.errorInfo.exception">
-                    <then><log level="error" message="Unable to authorize+capture payment. Exception in TransactionServices.sendAuthorizeRequest(): ${responseMap.errorInfo.exception.toString()}"/></then>
-                    <else><log level="info" message="Successfully completed authorization+capture of charge: ${responseMap.charge.id}"/></else>
-                </if>
-            </else></if>
+                </then>
+                <else>
+                    <service-call name="Stripe.StripePaymentServices.save#StripeResponse" in-map="context"
+                                  out-map="context"/>
+                    <if condition="responseMap.errorInfo.exception">
+                        <then>
+                            <log level="error"
+                                 message="Unable to authorize+capture payment. Exception in TransactionServices.sendAuthorizeRequest(): ${responseMap.errorInfo.exception.toString()}"/>
+                        </then>
+                        <else>
+                            <log level="info"
+                                 message="Successfully completed authorization+capture of charge: ${responseMap.charge.id}"/>
+                        </else>
+                    </if>
+                </else>
+            </if>
         </actions>
     </service>
     <service verb="release" noun="Payment">
-        <description>In Stripe, a release is just a refund, but on an un-captured charge. So the code is exactly the same.</description>
+        <description>In Stripe, a release is just a refund, but on an un-captured charge. So the code is exactly the
+            same.
+        </description>
         <implements service="mantle.account.PaymentServices.release#Payment"/>
         <actions>
             <service-call name="Stripe.StripePaymentServices.get#StripeGatewayInfo" in-map="context" out-map="context"/>
@@ -142,13 +189,15 @@ along with this software (see the LICENSE.md file). If not, see
             <service-call name="Stripe.StripePaymentServices.get#AuthGatewayInfo" in-map="context" out-map="context"/>
             <set field="chargeId" from="authInfoMap.chargeId"/>
 
-            <service-call name="Stripe.StripePaymentServices.send#StripeRefundRequest" in-map="context" out-map="context"/>
+            <service-call name="Stripe.StripePaymentServices.send#StripeRefundRequest" in-map="context"
+                          out-map="context"/>
 
             <set field="paymentOperationEnumId" value="PgoRelease"/>
-            <if condition="!responseMap"><then>
-                <entity-find-one entity-name="mantle.account.payment.Payment" value-field="payment"/>
-                <!-- charge was not completed successfully, save an error response -->
-                <service-call name="create#mantle.account.method.PaymentGatewayResponse" out-map="context" in-map="[
+            <if condition="!responseMap">
+                <then>
+                    <entity-find-one entity-name="mantle.account.payment.Payment" value-field="payment"/>
+                    <!-- charge was not completed successfully, save an error response -->
+                    <service-call name="create#mantle.account.method.PaymentGatewayResponse" out-map="context" in-map="[
                               paymentGatewayConfigId:paymentGatewayConfigId,
                               paymentOperationEnumId:paymentOperationEnumId,
                               paymentId:paymentId,
@@ -161,13 +210,22 @@ along with this software (see the LICENSE.md file). If not, see
                               resultError:'Y',
                               resultBadExpire:'N',
                               resultBadCardNumber:'N']"/>
-            </then><else>
-                <service-call name="Stripe.StripePaymentServices.save#StripeResponse" in-map="context" out-map="context"/>
-                <if condition="responseMap.errorInfo.exception">
-                    <then><log level="error" message="Unable to release payment. Exception in TransactionServices.sendRefundRequest(): ${responseMap.errorInfo.exception.toString()}"/></then>
-                    <else><log level="info" message="Successfully completed release of charge: ${responseMap.refund.charge}"/></else>
-                </if>
-            </else></if>
+                </then>
+                <else>
+                    <service-call name="Stripe.StripePaymentServices.save#StripeResponse" in-map="context"
+                                  out-map="context"/>
+                    <if condition="responseMap.errorInfo.exception">
+                        <then>
+                            <log level="error"
+                                 message="Unable to release payment. Exception in TransactionServices.sendRefundRequest(): ${responseMap.errorInfo.exception.toString()}"/>
+                        </then>
+                        <else>
+                            <log level="info"
+                                 message="Successfully completed release of charge: ${responseMap.refund.charge}"/>
+                        </else>
+                    </if>
+                </else>
+            </if>
         </actions>
     </service>
     <service verb="refund" noun="Payment">
@@ -179,13 +237,15 @@ along with this software (see the LICENSE.md file). If not, see
             <service-call name="Stripe.StripePaymentServices.get#AuthGatewayInfo" in-map="context" out-map="context"/>
             <set field="chargeId" from="authInfoMap.chargeId"/>
 
-            <service-call name="Stripe.StripePaymentServices.send#StripeRefundRequest" in-map="context" out-map="context"/>
+            <service-call name="Stripe.StripePaymentServices.send#StripeRefundRequest" in-map="context"
+                          out-map="context"/>
 
             <set field="paymentOperationEnumId" value="PgoRefund"/>
-            <if condition="!responseMap"><then>
-                <entity-find-one entity-name="mantle.account.payment.Payment" value-field="payment"/>
-                <!-- charge was not completed successfully, save an error response -->
-                <service-call name="create#mantle.account.method.PaymentGatewayResponse" out-map="context" in-map="[
+            <if condition="!responseMap">
+                <then>
+                    <entity-find-one entity-name="mantle.account.payment.Payment" value-field="payment"/>
+                    <!-- charge was not completed successfully, save an error response -->
+                    <service-call name="create#mantle.account.method.PaymentGatewayResponse" out-map="context" in-map="[
                               paymentGatewayConfigId:paymentGatewayConfigId,
                               paymentOperationEnumId:paymentOperationEnumId,
                               paymentId:paymentId,
@@ -198,19 +258,32 @@ along with this software (see the LICENSE.md file). If not, see
                               resultError:'Y',
                               resultBadExpire:'N',
                               resultBadCardNumber:'N']"/>
-            </then><else>
-                <service-call name="Stripe.StripePaymentServices.save#StripeResponse" in-map="context" out-map="context"/>
-                <if condition="responseMap.errorInfo.exception">
-                    <then><log level="error" message="Unable to refund payment. Exception in TransactionServices.sendRefundRequest(): ${responseMap.errorInfo.exception.toString()}"/></then>
-                    <else><log level="info" message="Successfully completed refund of charge: ${responseMap.refund.charge}"/></else>
-                </if>
-            </else></if>
+                </then>
+                <else>
+                    <service-call name="Stripe.StripePaymentServices.save#StripeResponse" in-map="context"
+                                  out-map="context"/>
+                    <if condition="responseMap.errorInfo.exception">
+                        <then>
+                            <log level="error"
+                                 message="Unable to refund payment. Exception in TransactionServices.sendRefundRequest(): ${responseMap.errorInfo.exception.toString()}"/>
+                        </then>
+                        <else>
+                            <log level="info"
+                                 message="Successfully completed refund of charge: ${responseMap.refund.charge}"/>
+                        </else>
+                    </if>
+                </else>
+            </if>
         </actions>
     </service>
 
     <service verb="get" noun="StripeGatewayInfo">
-        <in-parameters><parameter name="paymentGatewayConfigId" required="true"/></in-parameters>
-        <out-parameters><parameter name="stripeGatewayInfoMap" type="Map"/></out-parameters>
+        <in-parameters>
+            <parameter name="paymentGatewayConfigId" required="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="stripeGatewayInfoMap" type="Map"/>
+        </out-parameters>
         <actions>
             <entity-find-one entity-name="Stripe.PaymentGatewayStripe" value-field="pgs"/>
             <set field="stripeGatewayInfoMap" from="[secretKey:pgs.secretKey]"/>
@@ -227,17 +300,22 @@ along with this software (see the LICENSE.md file). If not, see
         <actions>
             <entity-find-one entity-name="mantle.account.payment.Payment" value-field="payment"/>
             <set field="creditCard" from="payment.'mantle.account.method.CreditCard'"/>
-            <if condition="!creditCard"><return error="true" message="Cannot process payment [${paymentId}], not a Credit Card payment."/></if>
+            <if condition="!creditCard">
+                <return error="true" message="Cannot process payment [${paymentId}], not a Credit Card payment."/>
+            </if>
             <set field="paymentMethod" from="payment.'mantle.account.method.PaymentMethod'"/>
 
             <set field="postalAddress" from="paymentMethod.'mantle.party.contact.PostalAddress'"/>
             <set field="telecomNumber" from="paymentMethod.'mantle.party.contact.TelecomNumber'"/>
-            <set field="phone" from="(telecomNumber?.countryCode ? (telecomNumber.countryCode + '-') : '') + (telecomNumber?.areaCode ? (telecomNumber.areaCode + '-') : '') + telecomNumber?.contactNumber"/>
+            <set field="phone"
+                 from="(telecomNumber?.countryCode ? (telecomNumber.countryCode + '-') : '') + (telecomNumber?.areaCode ? (telecomNumber.areaCode + '-') : '') + telecomNumber?.contactNumber"/>
             <set field="emailContactMech" from="paymentMethod.'Email#mantle.party.contact.ContactMech'"/>
 
             <!-- credit card data -->
-            <set field="expireMonth" from="creditCard.expireDate ? creditCard.expireDate.substring(0, creditCard.expireDate.indexOf('/')) : null"/>
-            <set field="expireYear" from="creditCard.expireDate ? creditCard.expireDate.substring(creditCard.expireDate.indexOf('/')+1) : null"/>
+            <set field="expireMonth"
+                 from="creditCard.expireDate ? creditCard.expireDate.substring(0, creditCard.expireDate.indexOf('/')) : null"/>
+            <set field="expireYear"
+                 from="creditCard.expireDate ? creditCard.expireDate.substring(creditCard.expireDate.indexOf('/')+1) : null"/>
             <set field="expireDateFormatted" value="${expireYear}-${expireMonth}"/>
             <set field="cardNumber" from="creditCard.cardNumber"/>
 
@@ -259,22 +337,35 @@ along with this software (see the LICENSE.md file). If not, see
             <set field="transactionInfo" from="[
                         amount:toPlainString(payment.amount),
                         currency:'usd']"/>
-            <if condition="emailContactMech?.infoString"><set field="transactionInfo.receipt_email" from="emailContactMech?.infoString"/></if>
-            <if condition="paymentMethod.gatewayCimId"><set field="transactionInfo.customer" from="paymentMethod.gatewayCimId"/></if>
+            <if condition="emailContactMech?.infoString">
+                <set field="transactionInfo.receipt_email" from="emailContactMech?.infoString"/>
+            </if>
+            <if condition="paymentMethod.gatewayCimId">
+                <set field="transactionInfo.customer" from="paymentMethod.gatewayCimId"/>
+            </if>
         </actions>
     </service>
     <service verb="get" noun="AuthGatewayInfo">
-        <in-parameters><parameter name="paymentId" required="true"/></in-parameters>
-        <out-parameters><parameter name="authInfoMap" type="Map"/></out-parameters>
+        <in-parameters>
+            <parameter name="paymentId" required="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="authInfoMap" type="Map"/>
+        </out-parameters>
         <actions>
-            <service-call name="mantle.account.PaymentServices.get#AuthorizePaymentGatewayResponse" in-map="context" out-map="context"/>
-            <if condition="!paymentGatewayResponse"><return error="true" message="Could not find the chargeId from a successful authorization for Payment ${paymentId}"/></if>
+            <service-call name="mantle.account.PaymentServices.get#AuthorizePaymentGatewayResponse" in-map="context"
+                          out-map="context"/>
+            <if condition="!paymentGatewayResponse">
+                <return error="true"
+                        message="Could not find the chargeId from a successful authorization for Payment ${paymentId}"/>
+            </if>
 
             <set field="authInfoMap" from="[chargeId:paymentGatewayResponse.referenceNum]"/>
         </actions>
     </service>
 
-    <service verb="send" noun="StripeAuthorizeRequest" type="java" location="com.stripe.TransactionServices" method="sendAuthorizeRequest">
+    <service verb="send" noun="StripeAuthorizeRequest" type="java" location="com.stripe.TransactionServices"
+             method="sendAuthorizeRequest">
         <in-parameters>
             <parameter name="secretKey" required="true"/>
             <parameter name="creditCardInfo" type="Map" required="true"/>
@@ -284,7 +375,8 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="responseMap" type="Map"/>
         </out-parameters>
     </service>
-    <service verb="send" noun="StripeCaptureRequest" type="java" location="com.stripe.TransactionServices" method="sendCaptureRequest">
+    <service verb="send" noun="StripeCaptureRequest" type="java" location="com.stripe.TransactionServices"
+             method="sendCaptureRequest">
         <in-parameters>
             <parameter name="secretKey" required="true"/>
             <parameter name="chargeId" required="true"/>
@@ -294,7 +386,8 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="responseMap" type="Map"/>
         </out-parameters>
     </service>
-    <service verb="send" noun="StripeRefundRequest" type="java" location="com.stripe.TransactionServices" method="sendRefundRequest">
+    <service verb="send" noun="StripeRefundRequest" type="java" location="com.stripe.TransactionServices"
+             method="sendRefundRequest">
         <in-parameters>
             <parameter name="secretKey" required="true"/>
             <parameter name="chargeId" required="true"/>
@@ -318,7 +411,9 @@ along with this software (see the LICENSE.md file). If not, see
         </out-parameters>
         <actions>
             <entity-find-one entity-name="mantle.account.payment.Payment" value-field="payment"/>
-            <if condition="payment &amp;&amp; !paymentMethodId"><set field="paymentMethodId" from="payment.paymentMethodId"/></if>
+            <if condition="payment &amp;&amp; !paymentMethodId">
+                <set field="paymentMethodId" from="payment.paymentMethodId"/>
+            </if>
 
             <if condition="responseMap.charge">
                 <then>
@@ -328,7 +423,8 @@ along with this software (see the LICENSE.md file). If not, see
                 <else>
                     <if condition="responseMap.refund">
                         <set field="chargeId" from="responseMap.refund.charge"/>
-                        <set field="amount" from="payment.amount - responseMap.refund.amount"/> <!-- TODO but what if payment doesn't have an amount? (same issue for the stripeProcesses) -->
+                        <set field="amount"
+                             from="payment.amount - responseMap.refund.amount"/> <!-- TODO but what if payment doesn't have an amount? (same issue for the stripeProcesses) -->
                     </if>
                 </else>
             </if>

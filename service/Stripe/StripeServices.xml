@@ -12,15 +12,20 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-2.1.xsd">
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-2.1.xsd">
     <service verb="get" noun="PaymentGatewayConfig">
         <in-parameters>
             <parameter name="paymentMethod" type="EntityValue"/>
             <parameter name="paymentGatewayConfigId"/>
         </in-parameters>
-        <out-parameters><parameter name="paymentGatewayConfigId"/></out-parameters>
+        <out-parameters>
+            <parameter name="paymentGatewayConfigId"/>
+        </out-parameters>
         <actions>
-            <if condition="!paymentGatewayConfigId"><set field="paymentGatewayConfigId" from="paymentMethod?.paymentGatewayConfigId"/></if>
+            <if condition="!paymentGatewayConfigId">
+                <set field="paymentGatewayConfigId" from="paymentMethod?.paymentGatewayConfigId"/>
+            </if>
             <if condition="!paymentGatewayConfigId &amp;&amp; paymentMethod?.ownerPartyId">
                 <set field="ownerParty" from="paymentMethod.ownerParty"/>
                 <if condition="ownerParty?.ownerPartyId">
@@ -30,7 +35,8 @@ along with this software (see the LICENSE.md file). If not, see
                 </if>
             </if>
             <if condition="!paymentGatewayConfigId">
-                <set field="paymentGatewayConfigId" from="ec.user.getPreference('StripePaymentGatewayConfigId')"/></if>
+                <set field="paymentGatewayConfigId" from="ec.user.getPreference('StripePaymentGatewayConfigId')"/>
+            </if>
         </actions>
     </service>
     <service verb="store" noun="CustomerPaymentMethod" authenticate="anonymous-all">
@@ -38,17 +44,28 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="paymentMethodId" required="true"/>
             <parameter name="validateSecurityCode"/>
             <parameter name="paymentId"/>
-            <parameter name="paymentGatewayConfigId"><description>If not specified gets from PaymentMethod or PayTraceVaultPaymentGatewayConfigId user preference</description></parameter>
+            <parameter name="paymentGatewayConfigId">
+                <description>If not specified gets from PaymentMethod or PayTraceVaultPaymentGatewayConfigId user
+                    preference
+                </description>
+            </parameter>
         </in-parameters>
 
         <actions>
             <entity-find-one entity-name="mantle.account.method.CreditCard" value-field="creditCard"/>
-            <if condition="creditCard == null"><return/></if>
+            <if condition="creditCard == null">
+                <return/>
+            </if>
 
-            <entity-find-one entity-name="mantle.account.method.PaymentMethod" value-field="paymentMethod" for-update="true"/>
+            <entity-find-one entity-name="mantle.account.method.PaymentMethod" value-field="paymentMethod"
+                             for-update="true"/>
 
             <service-call name="Stripe.StripeServices.get#PaymentGatewayConfig" in-map="context" out-map="context"/>
-            <if condition="!paymentGatewayConfigId"><log level="warn" message="In store#CustomerPaymentMethod no paymentGatewayConfigId specified or StripePaymentGatewayConfigId user preference found"/><return/></if>
+            <if condition="!paymentGatewayConfigId">
+                <log level="warn"
+                     message="In store#CustomerPaymentMethod no paymentGatewayConfigId specified or StripePaymentGatewayConfigId user preference found"/>
+                <return/>
+            </if>
             <entity-find-one entity-name="Stripe.PaymentGatewayStripe" value-field="pgs"/>
             <if condition="pgs == null">
                 <!-- this will happen regularly when PaymentMethod.paymentGatewayConfigId is for another gateway -->
@@ -72,18 +89,27 @@ along with this software (see the LICENSE.md file). If not, see
                 <set field="postalAddress" from="billingContactInfo.postalAddress"/>
                 <set field="stateProvinceGeo" from="billingContactInfo.postalAddressStateGeo"/>
             </if>
-<!--            <if condition="postalAddress == null"><return message="In store#CustomerPaymentMethod no address associated with credit card ${paymentMethodId}, not saving Stripe record."/></if> &lt;!&ndash; TODO: Stripe doesn't require a postal address. should I still require it?. For now, No. &ndash;&gt;-->
-            <set field="stateProvinceGeo" from="stateProvinceGeo != null ? stateProvinceGeo : postalAddress?.stateProvinceGeo"/>
+            <!--            <if condition="postalAddress == null"><return message="In store#CustomerPaymentMethod no address associated with credit card ${paymentMethodId}, not saving Stripe record."/>
+            </if> &lt;!&ndash; TODO: Stripe doesn't require a postal address. should I still require it?. For now, No. &ndash;&gt;-->
+            <set field="stateProvinceGeo"
+                 from="stateProvinceGeo != null ? stateProvinceGeo : postalAddress?.stateProvinceGeo"/>
 
             <set field="telecomNumber" from="paymentMethod.telecomNumber"/>
-            <if condition="telecomNumber == null"><set field="telecomNumber" from="billingContactInfo.telecomNumber"/></if>
-            <set field="phone" from="(telecomNumber?.countryCode ? (telecomNumber.countryCode + '-') : '') + (telecomNumber?.areaCode ? (telecomNumber.areaCode + '-') : '') + telecomNumber?.contactNumber"/>
+            <if condition="telecomNumber == null">
+                <set field="telecomNumber" from="billingContactInfo.telecomNumber"/>
+            </if>
+            <set field="phone"
+                 from="(telecomNumber?.countryCode ? (telecomNumber.countryCode + '-') : '') + (telecomNumber?.areaCode ? (telecomNumber.areaCode + '-') : '') + telecomNumber?.contactNumber"/>
             <set field="emailContactMech" from="paymentMethod.'Email#mantle.party.contact.ContactMech'"/>
-            <if condition="emailContactMech == null"><set field="emailContactMech" from="billingContactInfo.emailContactMech"/></if>
+            <if condition="emailContactMech == null">
+                <set field="emailContactMech" from="billingContactInfo.emailContactMech"/>
+            </if>
 
             <!-- credit card data -->
-            <set field="expireMonth" from="creditCard.expireDate ? creditCard.expireDate.substring(0, creditCard.expireDate.indexOf('/')) : null"/>
-            <set field="expireYear" from="creditCard.expireDate ? creditCard.expireDate.substring(creditCard.expireDate.indexOf('/')+1) : null"/>
+            <set field="expireMonth"
+                 from="creditCard.expireDate ? creditCard.expireDate.substring(0, creditCard.expireDate.indexOf('/')) : null"/>
+            <set field="expireYear"
+                 from="creditCard.expireDate ? creditCard.expireDate.substring(creditCard.expireDate.indexOf('/')+1) : null"/>
             <set field="expireDateFormatted" value="${expireYear}-${expireMonth}"/>
             <set field="cardNumber" from="creditCard.cardNumber"/>
 
@@ -101,15 +127,23 @@ along with this software (see the LICENSE.md file). If not, see
                                 city:postalAddress?.city,
                                 state:postalAddress?.stateProvinceGeoId ? postalAddress?.stateProvinceGeoId.substring(postalAddress?.stateProvinceGeoId.indexOf('_')+1) : stateProvinceGeo,
                                 country:postalAddress?.countryGeoId]]"/>
-            <if condition="emailContactMech"><set field="email" from="emailContactMech.infoString"/></if>
-            <if condition="phone"><set field="customerInfo.phone" from="phone"/></if>
+            <if condition="emailContactMech">
+                <set field="email" from="emailContactMech.infoString"/>
+            </if>
+            <if condition="phone">
+                <set field="customerInfo.phone" from="phone"/>
+            </if>
 
             <if condition="paymentMethod.gatewayCimId">
                 <then>
                     <set field="customerId" from="paymentMethod.gatewayCimId"/>
-                    <service-call name="Stripe.StripeServices.send#UpdateCustomerRequest" in-map="context" out-map="context"/>
+                    <service-call name="Stripe.StripeServices.send#UpdateCustomerRequest" in-map="context"
+                                  out-map="context"/>
                 </then>
-                <else><service-call name="Stripe.StripeServices.send#StoreCustomerRequest" in-map="context" out-map="context"/></else>
+                <else>
+                    <service-call name="Stripe.StripeServices.send#StoreCustomerRequest" in-map="context"
+                                  out-map="context"/>
+                </else>
             </if>
 
             <set field="customerId" from="responseMap.customer?.id"/>
@@ -127,11 +161,13 @@ along with this software (see the LICENSE.md file). If not, see
                             reasonMessage:errorInfo.reasonMessage.length() > 255 ? errorInfo.reasonMessage.substring(0,251) + &quot;...&quot; : errorInfo.reasonMessage,
                             resultSuccess:'N',
                             resultError:'Y']"/>
-                <log level="error" message="Could not save payment method ${paymentMethodId}, exception in CustomerServices.sendStoreRequest(): ${errorInfo.exception.toString()}"/>
+                <log level="error"
+                     message="Could not save payment method ${paymentMethodId}, exception in CustomerServices.sendStoreRequest(): ${errorInfo.exception.toString()}"/>
                 <return/>
             </if>
 
-            <log level="info" message="store#CustomerPaymentMethod for PaymentMethodId: ${paymentMethodId}... success!\n"/>
+            <log level="info"
+                 message="store#CustomerPaymentMethod for PaymentMethodId: ${paymentMethodId}... success!\n"/>
 
             <service-call name="create#mantle.account.method.PaymentGatewayResponse" out-map="context" in-map="[
                             paymentGatewayConfigId:paymentGatewayConfigId,
@@ -152,19 +188,26 @@ along with this software (see the LICENSE.md file). If not, see
             </if>
 
             <!-- clear out creditCard.cardNumber and creditCard.cardSecurityCode --> <!-- TODO is this necessary? Not doing this for now. -->
-<!--            <set field="creditCard.cardSecurityCode" from="null"/>-->
-<!--            <set field="creditCard.cardNumber"-->
-<!--                 from="'*'.padRight(creditCard.cardNumber.length() - 4, '*') + creditCard.cardNumber.substring(creditCard.cardNumber.length() - 4, creditCard.cardNumber.length())"/>-->
-<!--            <entity-update value-field="creditCard"/>-->
+            <!--            <set field="creditCard.cardSecurityCode" from="null"/>-->
+            <!--            <set field="creditCard.cardNumber"-->
+            <!--                 from="'*'.padRight(creditCard.cardNumber.length() - 4, '*') + creditCard.cardNumber.substring(creditCard.cardNumber.length() - 4, creditCard.cardNumber.length())"/>-->
+            <!--            <entity-update value-field="creditCard"/>-->
         </actions>
     </service>
     <service verb="delete" noun="CustomerPaymentMethod">
-        <in-parameters><parameter name="paymentMethodId"/></in-parameters>
+        <in-parameters>
+            <parameter name="paymentMethodId"/>
+        </in-parameters>
         <actions>
-            <entity-find-one entity-name="mantle.account.method.PaymentMethod" value-field="paymentMethod" for-update="true"/>
+            <entity-find-one entity-name="mantle.account.method.PaymentMethod" value-field="paymentMethod"
+                             for-update="true"/>
 
             <service-call name="Stripe.StripeServices.get#PaymentGatewayConfig" in-map="context" out-map="context"/>
-            <if condition="!paymentGatewayConfigId"><log level="warn" message="In delete#CustomerPaymentMethod no paymentGatewayConfigId specified or StripePaymentGatewayConfigId user preference found"/><return/></if>
+            <if condition="!paymentGatewayConfigId">
+                <log level="warn"
+                     message="In delete#CustomerPaymentMethod no paymentGatewayConfigId specified or StripePaymentGatewayConfigId user preference found"/>
+                <return/>
+            </if>
 
             <entity-find-one entity-name="Stripe.PaymentGatewayStripe" value-field="pgs"/>
             <if condition="pgs == null">
@@ -179,11 +222,13 @@ along with this software (see the LICENSE.md file). If not, see
                 <set field="secretKey" from="pgs.secretKey"/>
                 <set field="customerId" from="paymentMethod.gatewayCimId"/>
 
-                <service-call name="Stripe.StripeServices.send#DeleteCustomerRequest" in-map="context" out-map="context"/>
+                <service-call name="Stripe.StripeServices.send#DeleteCustomerRequest" in-map="context"
+                              out-map="context"/>
                 <set field="errorInfo" from="responseMap.errorInfo"/>
 
                 <if condition="errorInfo.exception">
-                    <log level="warn" message="Error deleting Stripe CIM info for PaymentMethod [${paymentMethodId}]: ${errorInfo.responseMessage}"/>
+                    <log level="warn"
+                         message="Error deleting Stripe CIM info for PaymentMethod [${paymentMethodId}]: ${errorInfo.responseMessage}"/>
                     <service-call name="create#mantle.account.method.PaymentGatewayResponse" out-map="context" in-map="[
                             paymentGatewayConfigId:paymentGatewayConfigId,
                             paymentOperationEnumId:'PgoStoreCim',
@@ -211,28 +256,37 @@ along with this software (see the LICENSE.md file). If not, see
         </actions>
     </service>
 
-    <service verb="send" noun="StoreCustomerRequest" type="java" location="com.stripe.CustomerServices" method="sendStoreRequest">
+    <service verb="send" noun="StoreCustomerRequest" type="java" location="com.stripe.CustomerServices"
+             method="sendStoreRequest">
         <in-parameters>
             <parameter name="secretKey" required="true"/>
             <parameter name="creditCardInfo" type="Map" required="true"/>
             <parameter name="customerInfo" type="Map"/>
         </in-parameters>
-        <out-parameters><parameter name="responseMap" type="Map"/></out-parameters>
+        <out-parameters>
+            <parameter name="responseMap" type="Map"/>
+        </out-parameters>
     </service>
-    <service verb="send" noun="UpdateCustomerRequest" type="java" location="com.stripe.CustomerServices" method="sendUpdateRequest">
+    <service verb="send" noun="UpdateCustomerRequest" type="java" location="com.stripe.CustomerServices"
+             method="sendUpdateRequest">
         <in-parameters>
             <parameter name="secretKey" required="true"/>
             <parameter name="customerId" required="true"/>
             <parameter name="creditCardInfo" type="Map" required="true"/>
             <parameter name="customerInfo" type="Map"/>
         </in-parameters>
-        <out-parameters><parameter name="responseMap" type="Map"/></out-parameters>
+        <out-parameters>
+            <parameter name="responseMap" type="Map"/>
+        </out-parameters>
     </service>
-    <service verb="send" noun="DeleteCustomerRequest" type="java" location="com.stripe.CustomerServices" method="sendDeleteRequest">
+    <service verb="send" noun="DeleteCustomerRequest" type="java" location="com.stripe.CustomerServices"
+             method="sendDeleteRequest">
         <in-parameters>
             <parameter name="secretKey" required="true"/>
             <parameter name="customerId" required="true"/>
         </in-parameters>
-        <out-parameters><parameter name="responseMap" type="Map"/></out-parameters>
+        <out-parameters>
+            <parameter name="responseMap" type="Map"/>
+        </out-parameters>
     </service>
 </services>
