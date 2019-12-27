@@ -7,9 +7,6 @@ buildscript {
     repositories {
         mavenCentral()
     }
-    dependencies {
-        classpath "io.spring.gradle:dependency-management-plugin:1.0.3.RELEASE"
-    }
 }
 
 sourceCompatibility = '1.8'
@@ -44,8 +41,6 @@ repositories {
 
 tasks.withType(JavaCompile) { options.compilerArgs << "-proc:none" }
 tasks.withType(GroovyCompile) { options.compilerArgs << "-proc:none" }
-
-apply plugin: "io.spring.dependency-management"
 
 dependencies {
     compile project(':framework')
