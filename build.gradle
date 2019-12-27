@@ -21,7 +21,7 @@ def frameworkDir = file(moquiDir.absolutePath + '/framework')
 
 test {
     dependsOn cleanTest
-//    include '**/GNDTestSuite.class'
+
     systemProperty 'moqui.runtime', moquiDir.absolutePath + '/runtime'
     systemProperty 'moqui.conf', 'conf/MoquiDevConf.xml'
     systemProperty 'moqui.init.static', 'true'
