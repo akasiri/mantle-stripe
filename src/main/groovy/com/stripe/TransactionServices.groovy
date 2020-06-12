@@ -45,6 +45,8 @@ class TransactionServices {
         def chargeId = ec.context.chargeId
         def amount = ec.context.amount
 
+        amount = amount.toInteger() * 100
+
         Stripe.apiKey = secretKey
 
         def responseMap = [:]
@@ -70,6 +72,8 @@ class TransactionServices {
         def secretKey = ec.context.secretKey
         def chargeId = ec.context.chargeId
         def amount = ec.context.amount
+
+        amount = amount.toInteger() * 100
 
         Stripe.apiKey = secretKey
 

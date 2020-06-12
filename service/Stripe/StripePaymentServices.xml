@@ -326,7 +326,7 @@ along with this software (see the LICENSE.md file). If not, see
                 <else>
                     <if condition="responseMap.refund">
                         <set field="chargeId" from="responseMap.refund.charge"/>
-                        <set field="amount" from="payment.amount - responseMap.refund.amount"/> <!-- TODO but what if payment doesn't have an amount? (same issue for the stripeProcesses) -->
+                        <set field="amount" from="responseMap.refund.amount / 100"/> <!-- TODO but what if payment doesn't have an amount? (same issue for the stripeProcesses) -->
                     </if>
                 </else>
             </if>
