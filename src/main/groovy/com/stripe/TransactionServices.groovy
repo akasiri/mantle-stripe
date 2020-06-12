@@ -13,7 +13,7 @@ class TransactionServices {
         def secretKey = ec.context.secretKey
         def creditCardInfo = ec.context.creditCardInfo
         def transactionInfo = ec.context.transactionInfo
-        transactionInfo.amount = transactionInfo.amount.toInteger() * 100
+        transactionInfo.amount = transactionInfo.amount.toInteger() * 100 // dollars to cents needed because stripe records USD amounts by the smallest division (cents)
         Stripe.apiKey = secretKey
 
         def tokenResponse = TokenServices.generateToken(ec).responseMap
@@ -45,7 +45,7 @@ class TransactionServices {
         def chargeId = ec.context.chargeId
         def amount = ec.context.amount
 
-        amount = amount.toInteger() * 100
+        amount = amount.toInteger() * 100 // dollars to cents needed because stripe records USD amounts by the smallest division (cents)
 
         Stripe.apiKey = secretKey
 
@@ -73,7 +73,7 @@ class TransactionServices {
         def chargeId = ec.context.chargeId
         def amount = ec.context.amount
 
-        amount = amount.toInteger() * 100
+        amount = amount.toInteger() * 100 // dollars to cents needed because stripe records USD amounts by the smallest division (cents)
 
         Stripe.apiKey = secretKey
 
