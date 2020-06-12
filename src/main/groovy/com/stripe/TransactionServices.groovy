@@ -13,7 +13,7 @@ class TransactionServices {
         def secretKey = ec.context.secretKey
         def creditCardInfo = ec.context.creditCardInfo
         def transactionInfo = ec.context.transactionInfo
-
+        transactionInfo.amount = transactionInfo.amount.toInteger() * 100
         Stripe.apiKey = secretKey
 
         def tokenResponse = TokenServices.generateToken(ec).responseMap
