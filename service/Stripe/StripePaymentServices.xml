@@ -93,6 +93,22 @@ along with this software (see the LICENSE.md file). If not, see
         <description>Exactly the same as authorize#Payment, except that transactionInfo.capture=true is sent to Stripe.</description>
         <implements service="mantle.account.PaymentServices.authorize#Payment"/>
         <actions>
+            <entity-find-one entity-name="mantle.account.payment.Payment" value-field="payment"/>
+            <if condition="payment == null"><return message="Payment ${paymentId} not found"/></if>
+            <set field="paymentMethod" from="payment.'mantle.account.method.PaymentMethod'"/>
+            <log message="Payment: ${payment}"/>
+<!--            <set field="payment.amount" from="payment.amount + '.00'"/>-->
+<!--            <entity-update value-field="payment"/>-->
+            <if condition="paymentMethod?.paymentMethodTypeEnumId != 'PmtCreditCard'">
+                <return error="true" message="Cannot authorize and capture payment ${paymentId}, not a Credit Card payment."/></if>
+
+            <!-- get creditCard for cardSecurityCode -->
+            <if condition="!cardSecurityCode">
+                <set field="creditCard" from="payment.'mantle.account.method.CreditCard'"/>
+                <set field="cardSecurityCode" from="creditCard?.cardSecurityCode"/>
+            </if>
+
+            <set field="visit" from="payment.'moqui.server.Visit'"/>
             <service-call name="Stripe.StripePaymentServices.get#StripeGatewayInfo" in-map="context" out-map="context"/>
             <set field="secretKey" from="stripeGatewayInfoMap.secretKey"/>
 
@@ -321,7 +337,10 @@ along with this software (see the LICENSE.md file). If not, see
             <if condition="responseMap.charge">
                 <then>
                     <set field="chargeId" from="responseMap.charge.id"/>
-                    <set field="amount" from="responseMap.charge.amount"/>
+                    <set field="amount" from="responseMap.charge.amount / 100"/>
+                    <set field="payment.statusId" value="PmntAuthorized"/>
+                    <entity-update value-field="payment"/>
+<!--                    <log level="info" message="Charge: ${responseMap.charge}"/>-->
                 </then>
                 <else>
                     <if condition="responseMap.refund">
