@@ -45,7 +45,7 @@ tasks.withType(GroovyCompile) { options.compilerArgs << "-proc:none" }
 dependencies {
     compile project(':framework')
     testCompile project(':framework').configurations.testCompile.allDependencies
-    compile "com.stripe:stripe-java:7.1.0"
+    compile "com.stripe:stripe-java:20.73.0"
 
 }
 

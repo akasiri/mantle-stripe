@@ -47,7 +47,12 @@ along with this software (see the LICENSE.md file). If not, see
                 <service-call name="Stripe.StripePaymentServices.save#StripeResponse" in-map="context" out-map="context"/>
                 <if condition="responseMap.errorInfo.exception">
                     <then><log level="error" message="Unable to authorize payment. Exception in TransactionServices.sendAuthorizeRequest(): ${responseMap.errorInfo.exception.toString()}"/></then>
-                    <else><log level="info" message="Successfully completed authorization of charge: ${responseMap.charge.id}"/></else>
+                    <else-if condition="responseMap.errorInfo.payment_intent_client_secret">
+                        <log level="info" message="Successfully completed authorization of charge: ${responseMap.errorInfo.payment_intent_client_secret}"/>
+                    </else-if>
+                    <else>
+                    <log level="info" message="Successfully completed authorization of charge: ${responseMap.charge.id}"/>
+                </else>
                 </if>
             </else></if>
         </actions>
@@ -59,7 +64,13 @@ along with this software (see the LICENSE.md file). If not, see
             <set field="secretKey" from="stripeGatewayInfoMap.secretKey"/>
 
             <service-call name="Stripe.StripePaymentServices.get#AuthGatewayInfo" in-map="context" out-map="context"/>
-            <set field="chargeId" from="authInfoMap.chargeId"/>
+            <if condition="authInfoMap.referenceNum"><then>
+                <set field="referenceNum" from="authInfoMap.referenceNum"/>
+                <set field="intentSecret" from="authInfoMap.intentSecret"/>
+                </then><else>
+                    <set field="chargeId" from="authInfoMap.chargeId"/>
+                </else>
+            </if>
 
             <service-call name="Stripe.StripePaymentServices.send#StripeCaptureRequest" in-map="context" out-map="context"/>
 
@@ -241,7 +252,7 @@ along with this software (see the LICENSE.md file). If not, see
         <actions>
             <entity-find-one entity-name="mantle.account.payment.Payment" value-field="payment"/>
             <set field="creditCard" from="payment.'mantle.account.method.CreditCard'"/>
-            <if condition="!creditCard"><return error="true" message="Cannot process payment [${paymentId}], not a Credit Card payment."/></if>
+            <if condition="!creditCard &amp;&amp; !payment.paymentRefNum"><return error="true" message="Cannot process payment [${paymentId}], not a Credit Card payment."/></if>
             <set field="paymentMethod" from="payment.'mantle.account.method.PaymentMethod'"/>
 
             <set field="postalAddress" from="paymentMethod.'mantle.party.contact.PostalAddress'"/>
@@ -249,30 +260,38 @@ along with this software (see the LICENSE.md file). If not, see
             <set field="phone" from="(telecomNumber?.countryCode ? (telecomNumber.countryCode + '-') : '') + (telecomNumber?.areaCode ? (telecomNumber.areaCode + '-') : '') + telecomNumber?.contactNumber"/>
             <set field="emailContactMech" from="paymentMethod.'Email#mantle.party.contact.ContactMech'"/>
 
-            <!-- credit card data -->
-            <set field="expireMonth" from="creditCard.expireDate ? creditCard.expireDate.substring(0, creditCard.expireDate.indexOf('/')) : null"/>
-            <set field="expireYear" from="creditCard.expireDate ? creditCard.expireDate.substring(creditCard.expireDate.indexOf('/')+1) : null"/>
-            <set field="expireDateFormatted" value="${expireYear}-${expireMonth}"/>
-            <set field="cardNumber" from="creditCard.cardNumber"/>
+            <if condition="creditCard"><then>
+                <!-- credit card data -->
+                <set field="expireMonth" from="creditCard.expireDate ? creditCard.expireDate.substring(0, creditCard.expireDate.indexOf('/')) : null"/>
+                <set field="expireYear" from="creditCard.expireDate ? creditCard.expireDate.substring(creditCard.expireDate.indexOf('/')+1) : null"/>
+                <set field="expireDateFormatted" value="${expireYear}-${expireMonth}"/>
+                <set field="cardNumber" from="creditCard.cardNumber"/>
 
-            <!-- gathering CC info to be used when generating a token later when sending the request -->
-            <set field="creditCardInfo" from="[
-                        number:cardNumber,
-                        exp_month:expireMonth,
-                        exp_year:expireYear,
-                        cvc:creditCard.cardSecurityCode,
-                        name:paymentMethod?.firstNameOnAccount + ' ' + paymentMethod?.lastNameOnAccount,
-                        address_line1:postalAddress?.address1,
-                        address_line2:postalAddress?.address2,
-                        address_city:postalAddress?.city,
-                        address_state:postalAddress?.stateProvinceGeoId ? postalAddress.stateProvinceGeoId.substring(postalAddress.stateProvinceGeoId.indexOf('_')+1) : null,
-                        address_zip:postalAddress?.postalCode,
-                        address_country:postalAddress?.countryGeoId]"/>
+                <!-- gathering CC info to be used when generating a token later when sending the request -->
+                <set field="creditCardInfo" from="[
+                                number:cardNumber,
+                                exp_month:expireMonth,
+                                exp_year:expireYear,
+                                cvc:creditCard.cardSecurityCode,
+                                name:paymentMethod?.firstNameOnAccount + ' ' + paymentMethod?.lastNameOnAccount,
+                                address_line1:postalAddress?.address1,
+                                address_line2:postalAddress?.address2,
+                                address_city:postalAddress?.city,
+                                address_state:postalAddress?.stateProvinceGeoId ? postalAddress.stateProvinceGeoId.substring(postalAddress.stateProvinceGeoId.indexOf('_')+1) : null,
+                                address_zip:postalAddress?.postalCode,
+                                address_country:postalAddress?.countryGeoId]"/>
+                </then><else>
+                    <set field="creditCardInfo" from="[paymentRefNum: payment.paymentRefNum]"/>
+                </else>
+            </if>
+            <entity-find-one entity-name="moqui.basic.Uom" value-field="currencyUom" cache="true">
+                <field-map field-name="uomId" from="payment.amountUomId"/>
+            </entity-find-one>
 
             <!-- TODO dynamic solution to currency? rather than just automatically using 'usd' -->
             <set field="transactionInfo" from="[
                         amount:toPlainString(payment.amount),
-                        currency:'usd']"/>
+                        currency: currencyUom ? currencyUom.abbreviation : 'usd']"/>
             <if condition="emailContactMech?.infoString"><set field="transactionInfo.receipt_email" from="emailContactMech?.infoString"/></if>
             <if condition="paymentMethod.gatewayCimId"><set field="transactionInfo.customer" from="paymentMethod.gatewayCimId"/></if>
         </actions>
@@ -281,17 +300,24 @@ along with this software (see the LICENSE.md file). If not, see
         <in-parameters><parameter name="paymentId" required="true"/></in-parameters>
         <out-parameters><parameter name="authInfoMap" type="Map"/></out-parameters>
         <actions>
-            <service-call name="mantle.account.PaymentServices.get#AuthorizePaymentGatewayResponse" in-map="context" out-map="context"/>
-            <if condition="!paymentGatewayResponse"><return error="true" message="Could not find the chargeId from a successful authorization for Payment ${paymentId}"/></if>
+            <entity-find-one entity-name="mantle.account.payment.Payment" value-field="payment"/>
+            <if condition="payment.paymentRefNum"><then>
+                <!-- TODO Use a different field for intent secret -->
+                <set field="authInfoMap" from="[referenceNum: payment.referenceNum, intentSecret: payment.comments]"/>
+            </then><else>
+                <service-call name="mantle.account.PaymentServices.get#AuthorizePaymentGatewayResponse" in-map="context" out-map="context"/>
+                <if condition="!paymentGatewayResponse"><return error="true" message="Could not find the chargeId from a successful authorization for Payment ${paymentId}"/></if>
 
-            <set field="authInfoMap" from="[chargeId:paymentGatewayResponse.referenceNum]"/>
+                <set field="authInfoMap" from="[chargeId:paymentGatewayResponse.referenceNum]"/>
+            </else>
+            </if>
         </actions>
     </service>
 
     <service verb="send" noun="StripeAuthorizeRequest" type="java" location="com.stripe.TransactionServices" method="sendAuthorizeRequest">
         <in-parameters>
             <parameter name="secretKey" required="true"/>
-            <parameter name="creditCardInfo" type="Map" required="true"/>
+            <parameter name="creditCardInfo" type="Map" required="false"/>
             <parameter name="transactionInfo" type="Map" required="true"/>
         </in-parameters>
         <out-parameters>
@@ -301,7 +327,9 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="send" noun="StripeCaptureRequest" type="java" location="com.stripe.TransactionServices" method="sendCaptureRequest">
         <in-parameters>
             <parameter name="secretKey" required="true"/>
-            <parameter name="chargeId" required="true"/>
+            <parameter name="chargeId" required="false"/>
+            <parameter name="referenceNum" required="false"/>
+            <parameter name="intentSecret" required="false"/>
             <parameter name="amount"/>
         </in-parameters>
         <out-parameters>
@@ -349,6 +377,25 @@ along with this software (see the LICENSE.md file). If not, see
                     </if>
                 </else>
             </if>
+            <if condition="responseMap.errorInfo.payment_intent_client_secret">
+                <then>
+                    <!-- TODO Discuss and identify right way to do it -->
+                    <!-- Currently we are storing payment method id and intent id in paymentRefNum only -->
+                    <!-- Need to identify right field for it -->
+                    <!-- paymentRefNum is too short for the payment_intent_client_secret as being greater than 63 characters -->
+                    <set field="payment.comments" from="responseMap.errorInfo.payment_intent_client_secret"/>
+                    <set field="amount" from="responseMap.amount / 100"/>
+                    <set field="payment.statusId" value="PmntAuthorized"/>
+                    <entity-update value-field="payment"/>
+                </then>
+                <else>
+                    <!-- TODO Handle with Refund case -->
+                    <if condition="responseMap.refund">
+                        <set field="amount" from="responseMap.refund.amount / 100"/> <!-- TODO but what if payment doesn't have an amount? (same issue for the stripeProcesses) -->
+                    </if>
+                </else>
+            </if>
+
             <set field="errorInfo" from="responseMap.errorInfo"/>
 
             <service-call name="create#mantle.account.method.PaymentGatewayResponse" out-map="context" in-map="[
