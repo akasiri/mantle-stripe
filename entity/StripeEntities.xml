@@ -24,4 +24,8 @@ along with this software (see the LICENSE.md file). If not, see
             <moqui.basic.Enumeration description="Stripe Gateway" enumId="PgtStripe" enumTypeId="PaymentGatewayType"/>
         </seed-data>
     </entity>
+    <extend-entity entity-name="Payment" package="mantle.account.payment">
+        <field name="externalId" type="text-medium"/>
+        <field name="externalSecret" type="text-medium"/>
+    </extend-entity>
 </entities>

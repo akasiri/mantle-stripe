@@ -25,7 +25,7 @@ class TransactionServices {
             try {
                 PaymentIntentCreateParams createParams = PaymentIntentCreateParams.builder()
                         .setAmount(transactionInfo.amount)
-                        .setCurrency("INR")
+                        .setCurrency(transactionInfo.currency)
                         .setConfirm(true)
                         .addPaymentMethodType("card")
                         .setPaymentMethod(creditCardInfo.paymentRefNum)
@@ -45,23 +45,22 @@ class TransactionServices {
                 // appears as 'requires_source_action'.
                 if (intent.getStatus().equals("requires_action")
                         && intent.getNextAction().getType().equals("use_stripe_sdk")) {
-                    // TODO
-                    // responseData.put("requires_action", true);
-                    // responseData.put("payment_intent_client_secret", intent.getClientSecret());
-                    responseMap.errorInfo = ['responseCode':'1','requires_action': true, 'payment_intent_client_secret': intent.getClientSecret()]
+                    responseMap.errorInfo = ['request': 'authorise', 'responseCode':'1', 'status': intent.getStatus() ,'requires_action': true, 'payment_intent_client_secret': intent.getClientSecret(), 'payment_intent_id': intent.getId()]
                 } else if (intent.getStatus().equals("requires_confirmation")) {
-                    // TODO
-                    // responseData.put("requires_action", true);
-                    // responseData.put("payment_intent_client_secret", intent.getClientSecret());
-                    responseMap.errorInfo = ['responseCode':'1','requires_confirmation': true, 'payment_intent_client_secret': intent.getClientSecret()]
+                    responseMap.errorInfo = ['request': 'authorise', 'responseCode':'1', 'status': intent.getStatus(),'requires_confirmation': true, 'payment_intent_client_secret': intent.getClientSecret(), 'payment_intent_id': intent.getId()]
                 } else if (intent.getStatus().equals("succeeded")) {
-                    responseMap.errorInfo = ['responseCode':'1', 'payment_intent_client_secret': intent.getClientSecret()] // '1' = success
+                    responseMap.errorInfo = ['request': 'authorise', 'responseCode':'1', 'status': intent.getStatus(), 'payment_intent_client_secret': intent.getClientSecret(), 'payment_intent_id': intent.getId()] // '1' = success
+                }  else if (intent.getStatus().equals("requires_capture")) {
+                    // If you’re separately authorizing and capturing funds, your PaymentIntent may also move to requires_capture.
+                    // https://stripe.com/docs/payments/intents
+                    // https://stripe.com/docs/payments/capture-later
+                    responseMap.errorInfo = ['request': 'authorise', 'responseCode':'1', 'status': intent.getStatus(), 'payment_intent_client_secret': intent.getClientSecret(), 'payment_intent_id': intent.getId()] // '1' = success
                 } else {
                     // invalid status
-                    responseMap.errorInfo = ['responseCode':'3','reasonCode':'','reasonMessage': 'Invalid status']
+                    responseMap.errorInfo = ['request': 'authorise', 'responseCode':'3', 'status': intent.getStatus(),'reasonCode':'','reasonMessage': 'Invalid status']
                 }
             } catch (Exception e) {
-                responseMap.errorInfo = ['responseCode':'3','reasonCode':'','reasonMessage':e.getMessage(),'exception':e]
+                responseMap.errorInfo = ['request': 'authorise', 'responseCode':'3','reasonCode':'','reasonMessage':e.getMessage(),'exception':e]
             }
         } else {
             def tokenResponse = TokenServices.generateToken(ec).responseMap
@@ -93,6 +92,7 @@ class TransactionServices {
         def amount = ec.context.amount
         def referenceNum = ec.context.referenceNum;
         def intentSecret = ec.context.intentSecret;
+        def intentId = ec.context.intentId;
 
         amount = amount.toInteger() * 100 // dollars to cents needed because stripe records USD amounts by the smallest division (cents)
 
@@ -102,20 +102,22 @@ class TransactionServices {
 
         if(referenceNum) {
             try {
-                PaymentIntent intent = PaymentIntent.retrieve(intentSecret);
+                PaymentIntent intent = PaymentIntent.retrieve(intentId);
 
                 PaymentIntentCaptureParams params =
                         PaymentIntentCaptureParams.builder()
                                 .setAmountToCapture(amount)
                                 .build();
 
-                intent.capture(params);
-                responseMap.errorInfo = ['responseCode':'1'] // '1' = success
+                intent = intent.capture(params);
+                responseMap.amount = amount;
+
+                responseMap.errorInfo = ['request': 'capture' ,'responseCode':'1', 'status': intent.getStatus(),] // '1' = success
 
             } catch (StripeException e) {
-                responseMap.errorInfo = ['responseCode':'3','reasonCode':e.getCode(),'reasonMessage':e.getMessage(),'exception':e]
+                responseMap.errorInfo = ['request': 'capture', 'responseCode':'3','reasonCode':e.getCode(),'reasonMessage':e.getMessage(),'exception':e]
             } catch (Exception e) {
-                responseMap.errorInfo = ['responseCode':'3','reasonCode':'','reasonMessage':e.getMessage(),'exception':e]
+                responseMap.errorInfo = ['request': 'capture', 'responseCode':'3','reasonCode':'','reasonMessage':e.getMessage(),'exception':e]
             }
 
         } else {

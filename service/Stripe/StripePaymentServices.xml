@@ -45,10 +45,10 @@ along with this software (see the LICENSE.md file). If not, see
                           resultBadCardNumber:'N']"/>
             </then><else>
                 <service-call name="Stripe.StripePaymentServices.save#StripeResponse" in-map="context" out-map="context"/>
-                <if condition="responseMap.errorInfo.exception">
+                <if condition="responseMap.errorInfo.exception || '3'.equals(responseMap.errorInfo.responseCode)">
                     <then><log level="error" message="Unable to authorize payment. Exception in TransactionServices.sendAuthorizeRequest(): ${responseMap.errorInfo.exception.toString()}"/></then>
-                    <else-if condition="responseMap.errorInfo.payment_intent_client_secret">
-                        <log level="info" message="Successfully completed authorization of charge: ${responseMap.errorInfo.payment_intent_client_secret}"/>
+                    <else-if condition="responseMap.errorInfo.payment_intent_id">
+                        <log level="info" message="Successfully completed authorization of : ${responseMap.errorInfo.payment_intent_client_secret}"/>
                     </else-if>
                     <else>
                     <log level="info" message="Successfully completed authorization of charge: ${responseMap.charge.id}"/>
@@ -67,6 +67,7 @@ along with this software (see the LICENSE.md file). If not, see
             <if condition="authInfoMap.referenceNum"><then>
                 <set field="referenceNum" from="authInfoMap.referenceNum"/>
                 <set field="intentSecret" from="authInfoMap.intentSecret"/>
+                <set field="intentId" from="authInfoMap.intentId"/>
                 </then><else>
                     <set field="chargeId" from="authInfoMap.chargeId"/>
                 </else>
@@ -95,6 +96,7 @@ along with this software (see the LICENSE.md file). If not, see
                 <service-call name="Stripe.StripePaymentServices.save#StripeResponse" in-map="context" out-map="context"/>
                 <if condition="responseMap.errorInfo.exception">
                     <then><log level="error" message="Unable to capture payment. Exception in TransactionServices.sendCaptureRequest(): ${responseMap.errorInfo.exception.toString()}"/></then>
+                    <else-if condition="authInfoMap.referenceNum"><log level="info" message="Successfully completed capture of payment referenceNum: ${authInfoMap.referenceNum}"/></else-if>
                     <else><log level="info" message="Successfully completed capture of charge: ${responseMap.charge.id}"/></else>
                 </if>
             </else></if>
@@ -303,7 +305,7 @@ along with this software (see the LICENSE.md file). If not, see
             <entity-find-one entity-name="mantle.account.payment.Payment" value-field="payment"/>
             <if condition="payment.paymentRefNum"><then>
                 <!-- TODO Use a different field for intent secret -->
-                <set field="authInfoMap" from="[referenceNum: payment.referenceNum, intentSecret: payment.comments]"/>
+                <set field="authInfoMap" from="[referenceNum: payment.paymentRefNum, intentId: payment.externalId, intentSecret: payment.externalSecret]"/>
             </then><else>
                 <service-call name="mantle.account.PaymentServices.get#AuthorizePaymentGatewayResponse" in-map="context" out-map="context"/>
                 <if condition="!paymentGatewayResponse"><return error="true" message="Could not find the chargeId from a successful authorization for Payment ${paymentId}"/></if>
@@ -330,6 +332,7 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="chargeId" required="false"/>
             <parameter name="referenceNum" required="false"/>
             <parameter name="intentSecret" required="false"/>
+            <parameter name="intentId" required="false"/>
             <parameter name="amount"/>
         </in-parameters>
         <out-parameters>
@@ -377,15 +380,25 @@ along with this software (see the LICENSE.md file). If not, see
                     </if>
                 </else>
             </if>
-            <if condition="responseMap.errorInfo.payment_intent_client_secret">
+            <if condition="payment.paymentRefNum">
                 <then>
                     <!-- TODO Discuss and identify right way to do it -->
                     <!-- Currently we are storing payment method id and intent id in paymentRefNum only -->
                     <!-- Need to identify right field for it -->
                     <!-- paymentRefNum is too short for the payment_intent_client_secret as being greater than 63 characters -->
-                    <set field="payment.comments" from="responseMap.errorInfo.payment_intent_client_secret"/>
+                    <set field="payment.externalId" from="responseMap.errorInfo.payment_intent_id"/>
+                    <set field="payment.externalSecret" from="responseMap.errorInfo.payment_intent_client_secret"/>
                     <set field="amount" from="responseMap.amount / 100"/>
-                    <set field="payment.statusId" value="PmntAuthorized"/>
+                    <if condition="'requires_capture'.equals(responseMap.errorInfo.status)">
+                        <set field="payment.statusId" value="PmntAuthorized"/>
+                        <else-if condition="'succeeded'.equals(responseMap.errorInfo.status)">
+                            <!-- case for requires_action -->
+                            <set field="payment.statusId" value="PmntConfirmed"/>
+                        </else-if>
+                        <else-if condition="'requires_action'.equals(responseMap.errorInfo.status)">
+                            <set field="payment.statusId" value="PmntPromised"/>
+                        </else-if>
+                    </if>
                     <entity-update value-field="payment"/>
                 </then>
                 <else>
@@ -405,7 +418,8 @@ along with this software (see the LICENSE.md file). If not, see
                         paymentMethodId:paymentMethodId,
                         amount:amount,
                         amountUomId:payment?.amountUomId,
-                        referenceNum:chargeId,
+                        referenceNum: payment.paymentRefNum ? payment.paymentRefNum : chargeId,
+                        transactionStatus: errorInfo.status,
                         responseCode:errorInfo.responseCode,
                         reasonCode:errorInfo.reasonCode,
                         reasonMessage:errorInfo.reasonMessage,
