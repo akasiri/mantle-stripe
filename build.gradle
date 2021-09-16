@@ -6,6 +6,7 @@ apply plugin: 'groovy'
 buildscript {
     repositories {
         mavenCentral()
+        maven { url "https://plugins.gradle.org/m2/" }
     }
 }
 
@@ -35,7 +36,6 @@ version = componentNode.'@version'
 
 repositories {
     flatDir name: 'localLib', dirs: frameworkDir.absolutePath + '/lib'
-    jcenter()
     mavenCentral()
 }
 
